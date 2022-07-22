@@ -1,28 +1,28 @@
-import { ensureNever } from '../../helpers/assertions';
-import { isNumber } from '../../helpers/strict-type-checks';
+import { ensureNever } from "../../helpers/assertions";
+import { isNumber } from "../../helpers/strict-type-checks";
 
-import { AutoScaleMargins } from '../../model/autoscale-info-impl';
-import { BarPrice, BarPrices } from '../../model/bar';
-import { ChartModel } from '../../model/chart-model';
-import { Coordinate } from '../../model/coordinate';
-import { Pane } from '../../model/pane';
-import { PriceScale } from '../../model/price-scale';
-import { Series } from '../../model/series';
-import { InternalSeriesMarker } from '../../model/series-markers';
-import { TimePointIndex, visibleTimedValues } from '../../model/time-data';
-import { TimeScale } from '../../model/time-scale';
-import { IPaneRenderer } from '../../renderers/ipane-renderer';
+import { AutoScaleMargins } from "../../model/autoscale-info-impl";
+import { BarPrice, BarPrices } from "../../model/bar";
+import { ChartModel } from "../../model/chart-model";
+import { Coordinate } from "../../model/coordinate";
+import { Pane } from "../../model/pane";
+import { PriceScale } from "../../model/price-scale";
+import { Series } from "../../model/series";
+import { InternalSeriesMarker } from "../../model/series-markers";
+import { TimePointIndex, visibleTimedValues } from "../../model/time-data";
+import { TimeScale } from "../../model/time-scale";
+import { IPaneRenderer } from "../../renderers/ipane-renderer";
 import {
 	SeriesMarkerRendererData,
 	SeriesMarkerRendererDataItem,
 	SeriesMarkersRenderer,
-} from '../../renderers/series-markers-renderer';
+} from "../../renderers/series-markers-renderer";
 import {
 	calculateShapeHeight,
 	shapeMargin as calculateShapeMargin,
-} from '../../renderers/series-markers-utils';
+} from "../../renderers/series-markers-utils";
 
-import { IUpdatablePaneView, UpdateType } from './iupdatable-pane-view';
+import { IUpdatablePaneView, UpdateType } from "./iupdatable-pane-view";
 
 const enum Constants {
 	TextMargin = 0.1,
@@ -49,31 +49,55 @@ function fillSizeAndY(
 	const highPrice = isNumber(seriesData) ? seriesData : seriesData.high;
 	const lowPrice = isNumber(seriesData) ? seriesData : seriesData.low;
 	const sizeMultiplier = isNumber(marker.size) ? Math.max(marker.size, 0) : 1;
-	const shapeSize = calculateShapeHeight(timeScale.barSpacing()) * sizeMultiplier;
+	const shapeSize =
+		calculateShapeHeight(timeScale.barSpacing()) * sizeMultiplier;
 	const halfSize = shapeSize / 2;
 	rendererItem.size = shapeSize;
 
+	if (typeof marker.position === "number") {
+		rendererItem.y = priceScale.priceToCoordinate(marker.position, firstValue);
+		if (rendererItem.text !== undefined) {
+			rendererItem.text.y = (rendererItem.y +
+				halfSize +
+				shapeMargin +
+				textHeight * (0.5 + Constants.TextMargin)) as Coordinate;
+		}
+		return;
+	}
+
 	switch (marker.position) {
-		case 'inBar': {
+		case "inBar": {
 			rendererItem.y = priceScale.priceToCoordinate(inBarPrice, firstValue);
 			if (rendererItem.text !== undefined) {
-				rendererItem.text.y = rendererItem.y + halfSize + shapeMargin + textHeight * (0.5 + Constants.TextMargin) as Coordinate;
+				rendererItem.text.y = (rendererItem.y +
+					halfSize +
+					shapeMargin +
+					textHeight * (0.5 + Constants.TextMargin)) as Coordinate;
 			}
 			return;
 		}
-		case 'aboveBar': {
-			rendererItem.y = (priceScale.priceToCoordinate(highPrice, firstValue) - halfSize - offsets.aboveBar) as Coordinate;
+		case "aboveBar": {
+			rendererItem.y = (priceScale.priceToCoordinate(highPrice, firstValue) -
+				halfSize -
+				offsets.aboveBar) as Coordinate;
 			if (rendererItem.text !== undefined) {
-				rendererItem.text.y = rendererItem.y - halfSize - textHeight * (0.5 + Constants.TextMargin) as Coordinate;
+				rendererItem.text.y = (rendererItem.y -
+					halfSize -
+					textHeight * (0.5 + Constants.TextMargin)) as Coordinate;
 				offsets.aboveBar += textHeight * (1 + 2 * Constants.TextMargin);
 			}
 			offsets.aboveBar += shapeSize + shapeMargin;
 			return;
 		}
-		case 'belowBar': {
-			rendererItem.y = (priceScale.priceToCoordinate(lowPrice, firstValue) + halfSize + offsets.belowBar) as Coordinate;
+		case "belowBar": {
+			rendererItem.y = (priceScale.priceToCoordinate(lowPrice, firstValue) +
+				halfSize +
+				offsets.belowBar) as Coordinate;
 			if (rendererItem.text !== undefined) {
-				rendererItem.text.y = rendererItem.y + halfSize + shapeMargin + textHeight * (0.5 + Constants.TextMargin) as Coordinate;
+				rendererItem.text.y = (rendererItem.y +
+					halfSize +
+					shapeMargin +
+					textHeight * (0.5 + Constants.TextMargin)) as Coordinate;
 				offsets.belowBar += textHeight * (1 + 2 * Constants.TextMargin);
 			}
 			offsets.belowBar += shapeSize + shapeMargin;
@@ -109,12 +133,17 @@ export class SeriesMarkersPaneView implements IUpdatablePaneView {
 	public update(updateType?: UpdateType): void {
 		this._invalidated = true;
 		this._autoScaleMarginsInvalidated = true;
-		if (updateType === 'data') {
+		if (updateType === "data") {
 			this._dataInvalidated = true;
 		}
 	}
 
-	public renderer(height: number, width: number, pane: Pane, addAnchors?: boolean): IPaneRenderer | null {
+	public renderer(
+		height: number,
+		width: number,
+		pane: Pane,
+		addAnchors?: boolean
+	): IPaneRenderer | null {
 		if (!this._series.visible()) {
 			return null;
 		}
@@ -135,7 +164,8 @@ export class SeriesMarkersPaneView implements IUpdatablePaneView {
 			if (this._series.indexedMarkers().length > 0) {
 				const barSpacing = this._model.timeScale().barSpacing();
 				const shapeMargin = calculateShapeMargin(barSpacing);
-				const marginsAboveAndBelow = calculateShapeHeight(barSpacing) * 1.5 + shapeMargin * 2;
+				const marginsAboveAndBelow =
+					calculateShapeHeight(barSpacing) * 1.5 + shapeMargin * 2;
 				this._autoScaleMargins = {
 					above: marginsAboveAndBelow as Coordinate,
 					below: marginsAboveAndBelow as Coordinate,
@@ -155,17 +185,19 @@ export class SeriesMarkersPaneView implements IUpdatablePaneView {
 		const timeScale = this._model.timeScale();
 		const seriesMarkers = this._series.indexedMarkers();
 		if (this._dataInvalidated) {
-			this._data.items = seriesMarkers.map<SeriesMarkerRendererDataItem>((marker: InternalSeriesMarker<TimePointIndex>) => ({
-				time: marker.time,
-				x: 0 as Coordinate,
-				y: 0 as Coordinate,
-				size: 0,
-				shape: marker.shape,
-				color: marker.color,
-				internalId: marker.internalId,
-				externalId: marker.id,
-				text: undefined,
-			}));
+			this._data.items = seriesMarkers.map<SeriesMarkerRendererDataItem>(
+				(marker: InternalSeriesMarker<TimePointIndex>) => ({
+					time: marker.time,
+					x: 0 as Coordinate,
+					y: 0 as Coordinate,
+					size: 0,
+					shape: marker.shape,
+					color: marker.color,
+					internalId: marker.internalId,
+					externalId: marker.id,
+					text: undefined,
+				})
+			);
 			this._dataInvalidated = false;
 		}
 
@@ -190,8 +222,16 @@ export class SeriesMarkersPaneView implements IUpdatablePaneView {
 			aboveBar: shapeMargin,
 			belowBar: shapeMargin,
 		};
-		this._data.visibleRange = visibleTimedValues(this._data.items, visibleBars, true);
-		for (let index = this._data.visibleRange.from; index < this._data.visibleRange.to; index++) {
+		this._data.visibleRange = visibleTimedValues(
+			this._data.items,
+			visibleBars,
+			true
+		);
+		for (
+			let index = this._data.visibleRange.from;
+			index < this._data.visibleRange.to;
+			index++
+		) {
 			const marker = seriesMarkers[index];
 			if (marker.time !== prevTimeIndex) {
 				// new bar, reset stack counter
@@ -214,7 +254,17 @@ export class SeriesMarkersPaneView implements IUpdatablePaneView {
 			if (dataAt === null) {
 				continue;
 			}
-			fillSizeAndY(rendererItem, marker, dataAt, offsets, layoutOptions.fontSize, shapeMargin, priceScale, timeScale, firstValue.value);
+			fillSizeAndY(
+				rendererItem,
+				marker,
+				dataAt,
+				offsets,
+				layoutOptions.fontSize,
+				shapeMargin,
+				priceScale,
+				timeScale,
+				firstValue.value
+			);
 		}
 		this._invalidated = false;
 	}
